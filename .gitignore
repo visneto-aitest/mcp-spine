@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+*.pyo
+.spine/
+spine_audit.db
+spine_audit.db-journal
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+spine.toml
