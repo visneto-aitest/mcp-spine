@@ -1,0 +1,108 @@
+# ============================================================
+# MCP Spine — Example Configuration
+# ============================================================
+# A real-world config for a full-stack TypeScript/Python project
+# with GitHub, filesystem, and database MCP servers.
+
+[spine]
+log_level = "info"
+audit_db = ".spine/audit.db"
+
+# ── Downstream MCP Servers ──
+
+[[servers]]
+name = "filesystem"
+command = "npx"
+args = ["-y", "@modelcontextprotocol/server-filesystem", "/home/user/my-project"]
+timeout_seconds = 15
+
+[[servers]]
+name = "github"
+command = "npx"
+args = ["-y", "@modelcontextprotocol/server-github"]
+env = { GITHUB_TOKEN = "${GITHUB_TOKEN}" }
+timeout_seconds = 30
+max_retries = 3
+
+[[servers]]
+name = "postgres"
+command = "python3"
+args = ["-m", "mcp_server_postgres", "--connection-string", "${DATABASE_URL}"]
+timeout_seconds = 20
+circuit_breaker_threshold = 5
+
+# ── Semantic Routing ──
+
+[routing]
+max_tools = 5
+always_include = ["read_file", "write_file", "spine_set_context"]
+embedding_model = "all-MiniLM-L6-v2"
+rerank = true
+similarity_threshold = 0.25
+
+# ── Schema Minification ──
+
+[minifier]
+level = 2
+max_description_length = 100
+
+# ── State Guard ──
+
+[state_guard]
+enabled = true
+watch_paths = ["/home/user/my-project/src", "/home/user/my-project/tests"]
+max_tracked_files = 100
+max_pin_files = 15
+snippet_length = 150
+ignore_patterns = [
+    "**/.git/**",
+    "**/node_modules/**",
+    "**/__pycache__/**",
+    "**/dist/**",
+    "**/build/**",
+    "**/*.pyc",
+    "**/.DS_Store",
+    "**/package-lock.json",
+    "**/yarn.lock",
+]
+
+# ── Security ──
+
+[security]
+scrub_secrets_in_logs = true
+scrub_secrets_in_responses = false
+audit_all_tool_calls = true
+global_rate_limit = 120
+per_tool_rate_limit = 30
+
+[security.path]
+allowed_roots = ["/home/user/my-project"]
+denied_patterns = [
+    "**/.env",
+    "**/.env.*",
+    "**/secrets.*",
+    "**/*.pem",
+    "**/*.key",
+    "**/id_rsa*",
+    "**/.ssh/*",
+    "**/.aws/*",
+    "**/.gnupg/*",
+    "**/credentials.json",
+]
+
+# Block dangerous tools
+[[security.tools]]
+pattern = "execute_command"
+action = "deny"
+
+# Audit file writes
+[[security.tools]]
+pattern = "write_file"
+action = "audit"
+rate_limit = 20
+
+# Audit database mutations
+[[security.tools]]
+pattern = "query"
+action = "audit"
+rate_limit = 15

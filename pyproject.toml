@@ -1,0 +1,45 @@
+[project]
+name = "mcp-spine"
+version = "0.1.0"
+description = "Context Minifier & State Guard — MCP middleware proxy"
+requires-python = ">=3.11"
+license = "MIT"
+readme = "README.md"
+
+dependencies = [
+    "click>=8.1",
+    "rich>=13.0",
+    "watchfiles>=0.21",
+    "tomli>=2.0; python_version < '3.12'",
+]
+
+[project.optional-dependencies]
+ml = [
+    "sentence-transformers>=2.2",
+    "chromadb>=0.4",
+]
+dev = [
+    "pytest>=7.0",
+    "pytest-asyncio>=0.23",
+    "ruff>=0.4",
+]
+
+[project.scripts]
+mcp-spine = "spine.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["spine*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "S", "B", "I"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
