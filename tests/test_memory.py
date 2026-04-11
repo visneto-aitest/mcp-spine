@@ -3,8 +3,8 @@ Tests for MCP Spine tool output memory cache.
 """
 
 import time
-import pytest
-from spine.memory import ToolMemory, CachedResult
+
+from spine.memory import CachedResult, ToolMemory
 
 
 class TestToolMemoryBasic:

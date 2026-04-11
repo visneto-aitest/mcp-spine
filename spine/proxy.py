@@ -34,11 +34,8 @@ from spine.protocol import (
     RATE_LIMITED,
     TOOL_BLOCKED,
     TOOL_NOT_FOUND,
-    ProtocolError,
     make_error,
     make_response,
-    read_jsonrpc,
-    write_jsonrpc,
 )
 from spine.security import (
     RateLimiter,
