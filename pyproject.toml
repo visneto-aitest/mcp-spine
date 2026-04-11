@@ -1,11 +1,26 @@
 [project]
 name = "mcp-spine"
 version = "0.1.0"
-description = "Context Minifier & State Guard — MCP middleware proxy"
+description = "Context Minifier & State Guard — MCP middleware proxy that reduces token waste, prevents tool attrition, and eliminates context rot"
 requires-python = ">=3.11"
 license = "MIT"
 readme = "README.md"
-
+authors = [
+    { name = "Donnyb369" },
+]
+keywords = ["mcp", "llm", "proxy", "middleware", "security", "context", "tools"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Software Development :: Libraries",
+    "Topic :: Security",
+    "Operating System :: OS Independent",
+]
 dependencies = [
     "click>=8.1",
     "rich>=13.0",
@@ -23,6 +38,11 @@ dev = [
     "pytest-asyncio>=0.23",
     "ruff>=0.4",
 ]
+
+[project.urls]
+Homepage = "https://github.com/Donnyb369/mcp-spine"
+Repository = "https://github.com/Donnyb369/mcp-spine"
+Issues = "https://github.com/Donnyb369/mcp-spine/issues"
 
 [project.scripts]
 mcp-spine = "spine.cli:main"
