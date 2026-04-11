@@ -23,7 +23,7 @@ similarity_threshold = 0.3
 
 # --- Schema Minification (Stage 3) ---
 [minifier]
-level = 0                            # Off for testing - see raw schemas
+level = 2                            # Off for testing - see raw schemas
 
 # --- State Guard (Stage 4) ---
 [state_guard]
