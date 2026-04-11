@@ -11,7 +11,6 @@ Covers:
   - Audit fingerprinting
 """
 
-import time
 
 import pytest
 
@@ -38,7 +37,6 @@ from spine.security.policy import (
     ToolPolicy,
     load_security_policy,
 )
-
 
 # ───────────────────────────────────────────────
 # Secret Detection & Scrubbing

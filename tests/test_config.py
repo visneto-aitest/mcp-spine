@@ -2,7 +2,7 @@
 
 import pytest
 
-from spine.config import SpineConfig, ServerConfig, parse_config
+from spine.config import parse_config
 
 
 class TestConfigValidation:

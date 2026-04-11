@@ -1,9 +1,6 @@
 """Tests for the State Guard (Stage 4)."""
 
-import time
-from pathlib import Path
 
-import pytest
 from spine.state_guard import StateGuard
 
 

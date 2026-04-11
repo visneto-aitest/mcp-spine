@@ -313,7 +313,6 @@ def dashboard(db: str, refresh: float) -> None:
 def analytics(db: str, hours: int, json_output: bool) -> None:
     """Show tool usage analytics and performance metrics."""
     import sqlite3
-    import datetime as dt
 
     db_path = Path(db)
     if not db_path.exists():
@@ -399,7 +398,6 @@ def analytics(db: str, hours: int, json_output: bool) -> None:
 
     conn.close()
 
-    import time as _time
 
     if json_output:
         result = {

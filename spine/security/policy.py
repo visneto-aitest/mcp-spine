@@ -8,7 +8,6 @@ Defines what tools, paths, commands, and patterns are allowed or denied.
 from __future__ import annotations
 
 import fnmatch
-import re
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any

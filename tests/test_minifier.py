@@ -1,8 +1,6 @@
 """Tests for the Schema Minifier (Stage 3)."""
 
-import pytest
 from spine.minifier import SchemaMinifier
-
 
 SAMPLE_TOOL = {
     "name": "create_pull_request",

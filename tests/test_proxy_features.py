@@ -10,12 +10,7 @@ Covers:
 
 from __future__ import annotations
 
-import json
-import pytest
-from unittest.mock import MagicMock, AsyncMock, patch
-
-from spine.security.policy import ToolPolicy, PolicyAction, SecurityPolicy
-
+from spine.security.policy import PolicyAction, SecurityPolicy, ToolPolicy
 
 # ───────────────────────────────────────────────
 # Human-in-the-Loop Policy Tests

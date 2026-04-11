@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from spine.security import resolve_env_vars, safe_env_dict, validate_server_command
+from spine.security import safe_env_dict, validate_server_command
 from spine.security.policy import SecurityPolicy, load_security_policy
 
 if sys.version_info >= (3, 12):

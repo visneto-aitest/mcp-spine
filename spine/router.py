@@ -19,8 +19,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -111,8 +110,8 @@ class SemanticRouter:
             return
 
         try:
-            from sentence_transformers import SentenceTransformer
             import chromadb
+            from sentence_transformers import SentenceTransformer
         except ImportError:
             raise ImportError(
                 "Semantic routing requires ML dependencies. "

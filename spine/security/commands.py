@@ -53,7 +53,7 @@ def validate_server_command(
     # Use PureWindowsPath for robust handling on all platforms —
     # PurePosixPath doesn't understand backslash separators,
     # so "C:\Program Files\python.exe" would not split correctly.
-    from pathlib import PureWindowsPath, PurePosixPath
+    from pathlib import PurePosixPath, PureWindowsPath
     # Try Windows-style first (handles both / and \ separators)
     cmd_basename = PureWindowsPath(command).stem
     # Fallback: if the result still has separators, try POSIX
