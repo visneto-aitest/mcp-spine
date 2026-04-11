@@ -13,15 +13,19 @@ from __future__ import annotations
 
 import asyncio
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from spine.audit import AuditLogger, EventType, LogLevel
 from spine.config import ServerConfig
 from spine.protocol import (
+    INTERNAL_ERROR,
+    make_error,
     read_jsonrpc,
     write_jsonrpc,
 )
+from spine.security import scrub_secrets
+
 
 # ---------------------------------------------------------------------------
 # Circuit Breaker
@@ -156,13 +160,20 @@ class ServerConnection:
             raise FileNotFoundError(f"Command not found: {self.config.command}")
 
         try:
+            # Merge config env with current environment.
+            # Config env vars override but don't replace the full environment.
+            import os
+            spawn_env = None
+            if self.config.env:
+                spawn_env = {**os.environ, **self.config.env}
+
             self._process = await asyncio.create_subprocess_exec(
                 resolved_cmd,
                 *self.config.args,
                 stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
-                env=self.config.env or None,
+                env=spawn_env,
             )
         except (FileNotFoundError, PermissionError, OSError) as e:
             self._logger.error(
