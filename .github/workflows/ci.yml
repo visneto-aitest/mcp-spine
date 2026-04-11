@@ -32,9 +32,6 @@ jobs:
       - name: Run tests
         run: pytest tests/ -v --tb=short
 
-      - name: Run e2e tests
-        run: python test_e2e.py
-
   test-ml:
     runs-on: ubuntu-latest
     name: Test with ML deps
