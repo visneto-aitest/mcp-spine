@@ -9,8 +9,8 @@
   "runtime": "python",
   "mcpServers": {
     "spine": {
-      "command": "python",
-      "args": ["-u", "-m", "spine.cli", "serve", "--config", "spine.toml"]
+      "command": ".venv/bin/python",
+      "args": ["-u", "-m", "spine.cli", "serve", "--config", "configs/quickstart.spine.toml"]
     }
   }
 }
