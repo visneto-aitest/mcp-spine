@@ -1,6 +1,6 @@
 # MCP Spine
 
-[![mcp-spine MCP server](https://glama.ai/mcp/servers/Donnyb369/mcp-spine/badges/card.svg)](https://glama.ai/mcp/servers/Donnyb369/mcp-spine)
+[![mcp-spine MCP server](https://glama.ai/mcp/servers/Donnyb369/mcp-spine/badges/score.svg)](https://glama.ai/mcp/servers/Donnyb369/mcp-spine)
 
 **Context Minifier & State Guard** — A local-first MCP middleware proxy that reduces token waste, prevents tool attrition, and eliminates context rot.
 
