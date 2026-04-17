@@ -396,6 +396,20 @@ def analytics(db: str, hours: int, json_output: bool) -> None:
         LIMIT 1
     """, (cutoff,))
 
+    # ── Token budget (today) ──
+    budget_row: dict | None = None
+    try:
+        from datetime import date as _date
+        today_iso = _date.today().isoformat()
+        rows = query(
+            "SELECT date, tokens_used, tokens_limit "
+            "FROM token_usage WHERE date = ?",
+            (today_iso,),
+        )
+        budget_row = rows[0] if rows else None
+    except Exception:
+        budget_row = None
+
     conn.close()
 
 
@@ -408,6 +422,7 @@ def analytics(db: str, hours: int, json_output: bool) -> None:
             "security_events": sec_events,
             "hitl": hitl_stats,
             "hourly_activity": hourly,
+            "token_budget": _budget_snapshot(budget_row),
         }
         console.print(json.dumps(result, indent=2))
         return
@@ -506,6 +521,43 @@ def analytics(db: str, hours: int, json_output: bool) -> None:
             )
         console.print(h)
 
+    # Token budget (today)
+    snap = _budget_snapshot(budget_row)
+    if snap["daily_limit"] > 0 or snap["tokens_used"] > 0:
+        console.print()
+        b = Table(title="Token Budget (today)", show_header=False, expand=True)
+        b.add_column(ratio=1)
+        b.add_column(ratio=2)
+
+        used = snap["tokens_used"]
+        limit = snap["daily_limit"]
+        remaining = snap["tokens_remaining"]
+        pct = snap["usage_pct"]
+
+        pct_style = "green" if pct < 0.5 else "yellow" if pct < 0.8 else "red"
+        limit_display = f"{limit:,}" if limit > 0 else "[dim]unset[/dim]"
+
+        b.add_row("Date", snap["date"])
+        b.add_row("Used", f"{used:,}")
+        b.add_row("Limit", limit_display)
+        b.add_row(
+            "Remaining",
+            f"{remaining:,}" if limit > 0 else "[dim]n/a[/dim]",
+        )
+        b.add_row(
+            "Usage",
+            f"[{pct_style}]{pct * 100:.1f}%[/{pct_style}]"
+            if limit > 0 else "[dim]n/a[/dim]",
+        )
+
+        # Simple bar
+        if limit > 0:
+            bar_width = int(pct * 30)
+            bar = "█" * bar_width + "░" * (30 - bar_width)
+            b.add_row("", f"[{pct_style}]{bar}[/{pct_style}]")
+
+        console.print(b)
+
     # Busiest period
     if busiest:
         console.print()
@@ -515,6 +567,34 @@ def analytics(db: str, hours: int, json_output: bool) -> None:
         )
 
     console.print()
+
+
+def _budget_snapshot(row: dict | None) -> dict:
+    """
+    Build a consistent budget-stats dict from a token_usage row.
+
+    Returns a dict usable in both JSON output and rendered tables.
+    """
+    from datetime import date as _date
+    if row is None:
+        return {
+            "date": _date.today().isoformat(),
+            "tokens_used": 0,
+            "daily_limit": 0,
+            "tokens_remaining": 0,
+            "usage_pct": 0.0,
+        }
+    used = int(row.get("tokens_used") or 0)
+    limit = int(row.get("tokens_limit") or 0)
+    remaining = max(0, limit - used) if limit > 0 else 0
+    pct = (used / limit) if limit > 0 else 0.0
+    return {
+        "date": row.get("date") or _date.today().isoformat(),
+        "tokens_used": used,
+        "daily_limit": limit,
+        "tokens_remaining": remaining,
+        "usage_pct": round(min(1.0, pct), 4),
+    }
 
 
 @main.command()
@@ -559,9 +639,64 @@ def doctor(config: str) -> None:
             t2.add_row("Minification", f"Level {cfg.minifier.level}")
             t2.add_row("State Guard", "[green]on[/green]" if cfg.state_guard.enabled else "[dim]off[/dim]")
             t2.add_row("Audit DB", cfg.audit_db)
+            # Token budget
+            tb = cfg.token_budget
+            if tb.daily_limit > 0:
+                t2.add_row(
+                    "Token budget",
+                    f"[green]{tb.daily_limit:,}/day[/green] "
+                    f"(warn at {int(tb.warn_at * 100)}%, action={tb.action})",
+                )
+            else:
+                t2.add_row("Token budget", "[dim]disabled[/dim]")
         except Exception as e:
             t2.add_row("[red]Error[/red]", str(e))
     console.print(t2)
+
+    # Token budget usage today (if audit DB exists)
+    if config_path.exists():
+        try:
+            from spine.config import load_config as _lc
+            cfg_tmp = _lc(str(config_path))
+            db_path = Path(cfg_tmp.audit_db)
+            if db_path.exists():
+                import sqlite3 as _sq
+                from datetime import date as _date
+                conn = _sq.connect(str(db_path))
+                try:
+                    row = conn.execute(
+                        "SELECT tokens_used, tokens_limit FROM token_usage "
+                        "WHERE date = ?",
+                        (_date.today().isoformat(),),
+                    ).fetchone()
+                except _sq.Error:
+                    row = None
+                conn.close()
+
+                tb = Table(title="Token Budget (today)", show_header=False, expand=True)
+                tb.add_column(ratio=1)
+                tb.add_column(ratio=2)
+                if row is None:
+                    tb.add_row("Usage", "[dim]no records yet today[/dim]")
+                else:
+                    used = int(row[0] or 0)
+                    limit = int(row[1] or 0)
+                    if limit > 0:
+                        pct = used / limit
+                        style = "green" if pct < 0.5 else "yellow" if pct < 0.8 else "red"
+                        tb.add_row("Used", f"{used:,}")
+                        tb.add_row("Limit", f"{limit:,}")
+                        tb.add_row("Remaining", f"{max(0, limit - used):,}")
+                        tb.add_row(
+                            "Usage",
+                            f"[{style}]{pct * 100:.1f}%[/{style}]",
+                        )
+                    else:
+                        tb.add_row("Used", f"{used:,}")
+                        tb.add_row("Limit", "[dim]unset[/dim]")
+                console.print(tb)
+        except Exception:
+            pass
 
     # Commands
     t3 = Table(title="Dependencies", show_header=False, expand=True)

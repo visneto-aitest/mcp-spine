@@ -25,6 +25,7 @@ import time
 from typing import Any
 
 from spine.audit import AuditLogger, EventType, LogLevel
+from spine.budget import TokenBudget, estimate_tokens
 from spine.config import SpineConfig
 from spine.minifier import SchemaMinifier
 from spine.protocol import (
@@ -108,6 +109,14 @@ class SpineProxy:
                 max_pin_files=config.state_guard.max_pin_files,
                 snippet_length=config.state_guard.snippet_length,
             )
+
+        # Token Budget (daily spend tracker)
+        self._budget = TokenBudget(
+            daily_limit=config.token_budget.daily_limit,
+            warn_at=config.token_budget.warn_at,
+            action=config.token_budget.action,
+            db_path=config.audit_db,
+        )
 
         # Human-in-the-loop: pending confirmations
         self._pending_confirmations: dict[str, dict] = {}
@@ -235,6 +244,8 @@ class SpineProxy:
         self._running = False
         self.logger.info(EventType.SHUTDOWN)
         await self.pool.shutdown_all()
+        if getattr(self, "_budget", None) is not None:
+            self._budget.close()
         self.logger.close()
 
     async def _background_init(self) -> None:
@@ -445,6 +456,10 @@ class SpineProxy:
         if "spine_recall" not in tool_names:
             allowed_tools.append(self._get_recall_meta_tool())
 
+        # Inject spine_budget meta-tool
+        if "spine_budget" not in tool_names:
+            allowed_tools.append(self._get_budget_meta_tool())
+
         # Inject confirmation meta-tools if any tool policies use require_confirmation
         has_confirmation_tools = any(
             tp.require_confirmation for tp in self.config.security.tool_policies
@@ -545,6 +560,33 @@ class SpineProxy:
         if tool_name == "spine_recall":
             return self._handle_recall(msg_id, arguments)
 
+        # ── Handle spine_budget meta-tool ──
+        if tool_name == "spine_budget":
+            return self._handle_budget(msg_id, arguments)
+
+        # ── Token Budget: pre-call block ──
+        if (
+            self.config.token_budget.action == "block"
+            and self._budget.is_over_budget()
+        ):
+            stats = self._budget.stats()
+            self.logger.security(
+                EventType.POLICY_DENY,
+                tool_name=tool_name,
+                reason="token_budget_exceeded",
+                tokens_used=stats["tokens_used"],
+                tokens_limit=stats["daily_limit"],
+            )
+            return make_error(
+                msg_id,
+                TOOL_BLOCKED,
+                (
+                    f"Token budget exceeded. "
+                    f"Used {stats['tokens_used']} of {stats['daily_limit']} "
+                    f"tokens today."
+                ),
+            )
+
         # ── Security Check 5: Human-in-the-loop ──
         policy = self.config.security.get_tool_policy(tool_name)
         if policy and policy.require_confirmation:
@@ -581,15 +623,43 @@ class SpineProxy:
         # Cache tool result in memory
         self._memory.store(tool_name, arguments, result.get("result", result))
 
+        # ── Token Budget: record + maybe inject warning ──
+        response_payload = result.get("result", result)
+        req_tokens = estimate_tokens(arguments)
+        resp_tokens = estimate_tokens(response_payload)
+        total_tokens = req_tokens + resp_tokens
+        self._budget.record(total_tokens)
+
+        if self.config.token_budget.action == "warn":
+            if self._budget.should_fire_warning():
+                stats = self._budget.stats()
+                banner = (
+                    f"[SPINE] Warning: "
+                    f"{int(stats['usage_pct'] * 100)}% of daily token budget "
+                    f"used ({stats['tokens_used']}/{stats['daily_limit']} "
+                    f"tokens)"
+                )
+                response_payload = self._inject_banner(response_payload, banner)
+                self.logger.warn(
+                    EventType.TOOL_RESPONSE,
+                    tool_name=tool_name,
+                    reason="token_budget_warn_threshold",
+                    tokens_used=stats["tokens_used"],
+                    tokens_limit=stats["daily_limit"],
+                    usage_pct=stats["usage_pct"],
+                )
+
         # ── Audit Log ──
         self.logger.info(
             EventType.TOOL_RESPONSE,
             tool_name=tool_name,
             server_name=server.name,
             success="error" not in result,
+            tokens_used_today=self._budget.used(),
+            tokens_this_call=total_tokens,
         )
 
-        return make_response(msg_id, result.get("result", result))
+        return make_response(msg_id, response_payload)
 
     def _check_global_rate_limit(self) -> bool:
         """Check global rate limit across all tools."""
@@ -930,6 +1000,75 @@ class SpineProxy:
             "content": [{"type": "text", "text": text}],
         })
 
+    def _inject_banner(self, payload: Any, banner: str) -> Any:
+        """
+        Prepend ``banner`` to the text content of a tool response.
+
+        If the response already contains a ``content`` list of MCP
+        content blocks, we insert a text block at the front. Otherwise
+        we wrap the payload in a ``content`` list.
+        """
+        if isinstance(payload, dict):
+            content = payload.get("content")
+            if isinstance(content, list):
+                new_content = [
+                    {"type": "text", "text": banner}
+                ] + content
+                return {**payload, "content": new_content}
+            # No content list — attach one alongside existing fields.
+            return {
+                **payload,
+                "content": [{"type": "text", "text": banner}],
+            }
+        # Non-dict payload — wrap it.
+        return {
+            "content": [
+                {"type": "text", "text": banner},
+                {"type": "text", "text": str(payload)},
+            ]
+        }
+
+    def _handle_budget(
+        self, msg_id: int | str, arguments: dict[str, Any]
+    ) -> dict:
+        """Handle the spine_budget meta-tool: return today's usage stats."""
+        stats = self._budget.stats()
+        if stats["daily_limit"] <= 0:
+            text = (
+                "Token budget is not configured (daily_limit = 0).\n"
+                f"Tokens recorded today: {stats['tokens_used']}."
+            )
+        else:
+            text = (
+                f"Token budget status for {stats['date']}:\n"
+                f"  Used:       {stats['tokens_used']} tokens\n"
+                f"  Limit:      {stats['daily_limit']} tokens\n"
+                f"  Remaining:  {stats['tokens_remaining']} tokens\n"
+                f"  Usage:      {stats['usage_pct'] * 100:.1f}%\n"
+                f"  Warn at:    {int(stats['warn_at'] * 100)}%\n"
+                f"  Action:     {stats['action']}\n"
+                f"  Over budget: {stats['over_budget']}"
+            )
+        return make_response(msg_id, {
+            "content": [{"type": "text", "text": text}],
+            "stats": stats,
+        })
+
+    def _get_budget_meta_tool(self) -> dict[str, Any]:
+        """Return the spine_budget meta-tool definition."""
+        return {
+            "name": "spine_budget",
+            "description": (
+                "Check the current token budget status for today. "
+                "Returns tokens used, remaining, and the configured "
+                "daily limit."
+            ),
+            "inputSchema": {
+                "type": "object",
+                "properties": {},
+            },
+        }
+
     def _get_recall_meta_tool(self) -> dict[str, Any]:
         """Return the spine_recall meta-tool definition."""
         return {
@@ -958,3 +1097,4 @@ class SpineProxy:
                 },
             },
         }
+
