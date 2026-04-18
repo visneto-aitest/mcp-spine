@@ -19,7 +19,6 @@ import pytest
 
 from spine.budget import TokenBudget, estimate_tokens
 
-
 # ───────────────────────────────────────────────
 # Helpers
 # ───────────────────────────────────────────────
