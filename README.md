@@ -129,6 +129,15 @@ The `-u` flag ensures unbuffered stdout, preventing pipe hangs on Windows.
 - SHA-256 polling with 2-second interval
 - All reloads logged to the audit trail
 
+### Plugin System
+- Drop-in Python plugins that hook into the tool call pipeline
+- Four hook points: `on_tool_call`, `on_tool_response`, `on_tool_list`, `on_startup`/`on_shutdown`
+- Plugins can transform arguments, filter responses, block calls, or hide tools
+- Plugin chaining — multiple plugins run in sequence
+- Allow/deny lists for plugin access control
+- Auto-discovery from a configurable plugins directory
+- Example included: Slack channel compliance filter
+
 ### SSE Transport
 - Connect to remote MCP servers over HTTP/SSE alongside local stdio servers
 - No external dependencies (uses stdlib urllib)
@@ -220,6 +229,13 @@ action = "warn"         # "warn" = log warning, "block" = reject tool calls
 enabled = true
 watch_paths = ["/path/to/project"]
 
+# Plugins — custom middleware hooks
+[plugins]
+enabled = true
+directory = "plugins"
+# allow_list = ["slack-filter"]  # optional whitelist
+# deny_list = ["debug-plugin"]  # optional blacklist
+
 # Human-in-the-loop for destructive tools
 [[security.tools]]
 pattern = "write_file"
@@ -260,6 +276,7 @@ Defense-in-depth — every layer assumes the others might fail.
 | Log tampering | HMAC fingerprints on every audit entry |
 | Destructive operations | `require_confirmation` pauses for user approval |
 | Runaway token spend | Daily budget limits with warn/block enforcement |
+| Unvetted plugins | Allow/deny lists, directory isolation, audit logging |
 
 ## Architecture
 
@@ -278,6 +295,7 @@ Client ◄──stdio──► MCP Spine ◄──stdio──► Filesystem Serv
                    │HITL   │  ← Human-in-the-loop confirmation
                    │Memory │  ← Tool output cache
                    │Budget │  ← Daily token tracking + limits
+                   │Plugin │  ← Custom middleware hooks
                    └───────┘
 ```
 
@@ -318,6 +336,7 @@ mcp-spine/
 │   ├── state_guard.py      # File watcher + SHA-256 manifest + pin injection
 │   ├── memory.py           # Tool output cache (ring buffer + dedup + TTL)
 │   ├── budget.py           # Token budget tracker (daily limits + persistence)
+│   ├── plugins.py          # Plugin system (hooks, discovery, chaining)
 │   ├── dashboard.py        # Live TUI dashboard (Rich)
 │   ├── sse_client.py       # SSE transport client for remote servers
 │   └── security/
@@ -337,6 +356,8 @@ mcp-spine/
 │   ├── test_proxy_features.py  # HITL, dashboard, analytics tests
 │   ├── test_memory.py      # Tool output memory tests
 │   └── test_budget.py      # Token budget tracker tests
+├── examples/
+│   └── slack_filter.py     # Example: Slack compliance filter plugin
 ├── configs/
 │   └── example.spine.toml  # Complete reference config
 └── .github/
@@ -350,7 +371,7 @@ mcp-spine/
 pytest tests/ -v
 ```
 
-140+ tests covering security, config validation, schema minification, state guard, HITL policies, dashboard queries, analytics, tool memory, token budget tracking, and Windows path edge cases.
+160+ tests covering security, config validation, schema minification, state guard, HITL policies, dashboard queries, analytics, tool memory, token budget tracking, plugin system, and Windows path edge cases.
 
 CI runs on every push: Windows + Linux, Python 3.11/3.12/3.13.
 
